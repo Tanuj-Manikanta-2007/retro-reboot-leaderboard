@@ -201,7 +201,8 @@ export default function LeaderboardPage() {
                 </tr>
               ) : (
                 filteredData.map((item) => {
-                  const rank = item.display_rank;
+                  const rank =
+                  selectedGameFilter === "overall" ? item.rank : filteredData.findIndex((entry) => entry.player_id === item.player_id) + 1;
                   const isTop3 = rank <= 3;
                   return (
                     <tr
