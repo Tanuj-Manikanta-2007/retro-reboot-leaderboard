@@ -18,8 +18,9 @@ export default function AdminCorrectionsPage() {
   async function fetchRequests() {
     setLoading(true);
     try {
-      const url = filter === "all" ? "/api/admin/corrections" : `/api/admin/corrections?status=${filter}`;
-      const res = await fetch(url);
+      const base = filter === "all" ? "/api/admin/corrections" : `/api/admin/corrections?status=${filter}`;
+      const url = `${base}${base.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setRequests(data.data);

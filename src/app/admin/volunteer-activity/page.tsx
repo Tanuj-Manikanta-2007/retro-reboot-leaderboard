@@ -19,7 +19,7 @@ export default function VolunteerActivityPage() {
   async function fetchActivities() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/volunteer-activity");
+      const res = await fetch(`/api/admin/volunteer-activity?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setActivities(data.data);

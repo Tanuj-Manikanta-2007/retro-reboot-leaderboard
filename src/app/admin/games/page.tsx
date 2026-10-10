@@ -32,7 +32,7 @@ export default function AdminGamesPage() {
   async function fetchGames() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/games");
+      const res = await fetch(`/api/admin/games?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setGames(data.data);
@@ -53,7 +53,7 @@ export default function AdminGamesPage() {
     setRuleError(null);
     setRuleSuccess(null);
     try {
-      const res = await fetch(`/api/admin/games/${gameId}/rules`);
+      const res = await fetch(`/api/admin/games/${gameId}/rules?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setRules(data.data);

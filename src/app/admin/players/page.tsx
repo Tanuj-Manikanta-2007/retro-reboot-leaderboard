@@ -30,7 +30,7 @@ export default function AdminPlayersPage() {
   async function fetchPlayers() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/players");
+      const res = await fetch(`/api/admin/players?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setPlayers(data.data);

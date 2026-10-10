@@ -261,7 +261,7 @@ export const DataStore = {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
       const { data, error } = await supa.from("players").select("*").order("created_at", { ascending: false });
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         memPlayers = data;
         return data;
       }
@@ -365,8 +365,8 @@ export const DataStore = {
   async getGames(): Promise<Game[]> {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
-      const { data } = await supa.from("games").select("*").order("name");
-      if (data && data.length > 0) {
+      const { data, error } = await supa.from("games").select("*").order("name");
+      if (!error && data) {
         memGames = data;
         return data;
       }
@@ -689,7 +689,7 @@ export const DataStore = {
         .order("created_at", { ascending: false })
         .limit(limit);
       const { data, error } = await q;
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data.map((d: any) => ({
           ...d,
           volunteer: {
@@ -718,7 +718,7 @@ export const DataStore = {
         .from("score_attempts")
         .select("*, player:players(*), game:games(*)")
         .order("created_at", { ascending: false });
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data.map((d: any) => ({
           ...d,
           volunteer: {
@@ -908,7 +908,32 @@ export const DataStore = {
     status: string;
     correction_details?: string;
   }>> {
-    // Generate consolidated activity rows from attempts, corrections, and audit logs
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { data: attempts } = await supa
+        .from("score_attempts")
+        .select("*, player:players(*), game:games(*)")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (attempts && attempts.length > 0) {
+        return attempts.map((att: any) => ({
+          id: att.id,
+          volunteer_id: att.volunteer_id,
+          volunteer_name: att.volunteer_id === "b5a1e29d-eed5-4685-8136-9add7d03d77b" ? "Alex (VOL-01)" : "Volunteer Staff",
+          player_roll_number: att.player?.university_roll_number || "Unknown",
+          player_name: att.player?.full_name || "Unknown",
+          game_name: att.game?.name || "Unknown",
+          action: "Score Submitted",
+          score_change: att.raw_score !== null && att.raw_score !== undefined ? String(att.raw_score) : "Direct Manual",
+          points_change: `${att.awarded_points} pts`,
+          timestamp: att.created_at,
+          status: att.status,
+        }));
+      }
+    }
+
+    // Fallback to in-memory activity rows
     const activities: Array<any> = [];
 
     for (const att of memScoreAttempts) {
@@ -955,11 +980,11 @@ export const DataStore = {
     const players = await this.getPlayers();
     const attempts = await this.getAllScoreAttempts();
 
-    // Keep the calculation usable when a partially populated database is mixed
-    // with fallback data by retaining players included in score relations.
-    const playersById = new Map(players.map((player) => [player.id, player]));
+    // Only active players are eligible for public leaderboard
+    const activePlayers = players.filter((p) => p.is_active);
+    const playersById = new Map<string, Player>(activePlayers.map((player) => [player.id, player]));
     for (const attempt of attempts) {
-      if (attempt.player && !playersById.has(attempt.player_id)) {
+      if (attempt.player && attempt.player.is_active && !playersById.has(attempt.player_id)) {
         playersById.set(attempt.player_id, attempt.player);
       }
     }

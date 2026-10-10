@@ -40,7 +40,7 @@ export default function AdminDashboardPage() {
   async function fetchStats() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/dashboard-stats");
+      const res = await fetch(`/api/admin/dashboard-stats?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setStats(data.stats);

@@ -67,8 +67,8 @@ export default function VolunteerDashboardPage() {
     setLoading(true);
     try {
       const [pRes, gRes] = await Promise.all([
-        fetch("/api/admin/players").then((r) => r.json()),
-        fetch("/api/admin/games").then((r) => r.json()),
+        fetch(`/api/admin/players?_t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json()),
+        fetch(`/api/admin/games?_t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json()),
       ]);
 
       if (pRes.success) setPlayers(pRes.data.filter((p: Player) => p.is_active));
@@ -91,7 +91,7 @@ export default function VolunteerDashboardPage() {
 
   async function fetchGameRules(gameId: string) {
     try {
-      const res = await fetch(`/api/admin/games/${gameId}/rules`);
+      const res = await fetch(`/api/admin/games/${gameId}/rules?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setRules(data.data);
@@ -103,7 +103,7 @@ export default function VolunteerDashboardPage() {
 
   async function fetchRecentScores() {
     try {
-      const res = await fetch("/api/volunteer/scores");
+      const res = await fetch(`/api/volunteer/scores?_t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setRecentAttempts(data.data);

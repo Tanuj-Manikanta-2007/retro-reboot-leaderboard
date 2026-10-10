@@ -38,6 +38,14 @@ export function createClient() {
         }
       },
     },
+    global: {
+      fetch: (url: any, options: any = {}) => {
+        return fetch(url, {
+          ...options,
+          cache: "no-store",
+        });
+      },
+    },
   });
 }
 
@@ -53,6 +61,14 @@ export function createAdminClient() {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+    global: {
+      fetch: (url: any, options: any = {}) => {
+        return fetch(url, {
+          ...options,
+          cache: "no-store",
+        });
+      },
     },
   });
 }

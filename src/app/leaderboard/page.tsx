@@ -20,12 +20,17 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     fetchLeaderboard();
+    const interval = setInterval(() => fetchLeaderboard(true), 15000);
+    return () => clearInterval(interval);
   }, []);
 
-  async function fetchLeaderboard() {
-    setLoading(true);
+  async function fetchLeaderboard(isSilent = false) {
+    if (!isSilent) setLoading(true);
     try {
-      const res = await fetch("/api/leaderboard");
+      const res = await fetch(`/api/leaderboard?_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
+      });
       const data = await res.json();
       if (data.success && Array.isArray(data.leaderboard)) {
         setLeaderboard(data.leaderboard);
@@ -34,7 +39,7 @@ export default function LeaderboardPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }
 
@@ -119,7 +124,7 @@ export default function LeaderboardPage() {
 
           <div className="flex flex-col items-center sm:items-end gap-3 shrink-0">
             <button
-              onClick={fetchLeaderboard}
+              onClick={() => fetchLeaderboard(false)}
               className="px-4 py-2.5 bg-cogaan-gold hover:bg-amber-400 text-black font-bold text-xs rounded-xl shadow-neon flex items-center gap-2 transition-all"
             >
               <RefreshCw className="w-4 h-4" />
