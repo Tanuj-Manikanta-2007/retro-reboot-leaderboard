@@ -202,6 +202,13 @@ export default function VolunteerDashboardPage() {
     const finalPoints = scoringMethod === "automatic" ? automaticEval?.points : parseInt(manualPoints, 10);
     const parsedRaw = rawScore.trim() ? parseInt(rawScore, 10) : null;
 
+    if (finalPoints === undefined || isNaN(finalPoints) || finalPoints < 1 || finalPoints > 100) {
+      setFormError("Awarded points must be between 1 and 100.");
+      setSubmitting(false);
+      setShowConfirmModal(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/scores", {
         method: "POST",

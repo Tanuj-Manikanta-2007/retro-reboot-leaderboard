@@ -234,20 +234,20 @@ let memAuditLogs: AuditLog[] = [];
 
 // Helper to populate relations on an attempt
 function populateAttempt(att: ScoreAttempt): ScoreAttempt {
-  const p = memPlayers.find((x) => x.id === att.player_id);
-  const g = memGames.find((x) => x.id === att.game_id);
+  const p = att.player || memPlayers.find((x) => x.id === att.player_id);
+  const g = att.game || memGames.find((x) => x.id === att.game_id);
   return {
     ...att,
     player: p,
     game: g,
-    volunteer: {
+    volunteer: att.volunteer || {
       id: att.volunteer_id,
       display_name: att.volunteer_id === "vol-1" ? "Volunteer Alex" : "Staff Team",
       role: "volunteer",
       volunteer_code: att.volunteer_id === "vol-1" ? "VOL-01" : "VOL-02",
       is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: att.created_at || new Date().toISOString(),
+      updated_at: att.updated_at || new Date().toISOString(),
     },
   };
 }
@@ -261,7 +261,10 @@ export const DataStore = {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
       const { data, error } = await supa.from("players").select("*").order("created_at", { ascending: false });
-      if (!error && data) return data;
+      if (!error && data && data.length > 0) {
+        memPlayers = data;
+        return data;
+      }
     }
     return [...memPlayers];
   },
@@ -270,7 +273,12 @@ export const DataStore = {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
       const { data } = await supa.from("players").select("*").eq("id", id).single();
-      if (data) return data;
+      if (data) {
+        const idx = memPlayers.findIndex((p) => p.id === data.id);
+        if (idx !== -1) memPlayers[idx] = data;
+        else memPlayers.push(data);
+        return data;
+      }
     }
     return memPlayers.find((p) => p.id === id) || null;
   },
@@ -296,7 +304,10 @@ export const DataStore = {
       const supa = createAdminClient();
       const { data, error } = await supa.from("players").insert(newPlayer).select().single();
       if (error) throw new Error(error.message);
-      if (data) return data;
+      if (data) {
+        memPlayers.unshift(data);
+        return data;
+      }
     }
 
     memPlayers.unshift(newPlayer);
@@ -311,7 +322,7 @@ export const DataStore = {
   },
 
   async updatePlayer(id: string, updates: Partial<Player>): Promise<Player> {
-    const p = memPlayers.find((x) => x.id === id);
+    const p = await this.getPlayerById(id);
     if (!p) throw new Error("Player not found");
 
     if (updates.university_roll_number) {
@@ -320,9 +331,25 @@ export const DataStore = {
       if (conflict) throw new Error(`Roll Number ${updates.university_roll_number} is already in use`);
     }
 
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { data, error } = await supa
+        .from("players")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .select()
+        .single();
+      if (!error && data) {
+        const idx = memPlayers.findIndex((x) => x.id === id);
+        if (idx !== -1) memPlayers[idx] = data;
+        else memPlayers.push(data);
+        return data;
+      }
+    }
+
     const updated = { ...p, ...updates, updated_at: new Date().toISOString() };
     const index = memPlayers.findIndex((x) => x.id === id);
-    memPlayers[index] = updated;
+    if (index !== -1) memPlayers[index] = updated;
 
     this.logAudit({
       action_type: "player_updated",
@@ -339,9 +366,26 @@ export const DataStore = {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
       const { data } = await supa.from("games").select("*").order("name");
-      if (data) return data;
+      if (data && data.length > 0) {
+        memGames = data;
+        return data;
+      }
     }
     return [...memGames];
+  },
+
+  async getGameById(id: string): Promise<Game | null> {
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { data } = await supa.from("games").select("*").eq("id", id).single();
+      if (data) {
+        const idx = memGames.findIndex((g) => g.id === data.id);
+        if (idx !== -1) memGames[idx] = data;
+        else memGames.push(data);
+        return data;
+      }
+    }
+    return memGames.find((g) => g.id === id) || null;
   },
 
   async createGame(gameData: Omit<Game, "id" | "created_at" | "updated_at">): Promise<Game> {
@@ -506,15 +550,34 @@ export const DataStore = {
     idempotency_key: string;
   }): Promise<ScoreAttempt> {
     // Idempotency check
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { data: existingSupa } = await supa
+        .from("score_attempts")
+        .select("*, player:players(*), game:games(*)")
+        .eq("idempotency_key", params.idempotency_key)
+        .maybeSingle();
+
+      if (existingSupa) {
+        return populateAttempt(existingSupa as ScoreAttempt);
+      }
+    }
+
     const existingAttempt = memScoreAttempts.find((a) => a.idempotency_key === params.idempotency_key);
     if (existingAttempt) {
       return populateAttempt(existingAttempt);
     }
 
-    // Verify game is open
-    const game = memGames.find((g) => g.id === params.game_id);
+    // Verify game exists and is open
+    const game = await this.getGameById(params.game_id);
     if (!game || !game.is_active || game.scoring_status === "closed") {
       throw new Error(`Scoring is currently closed for ${game?.name || "this game"}`);
+    }
+
+    // Verify player exists and is active
+    const player = await this.getPlayerById(params.player_id);
+    if (!player || !player.is_active) {
+      throw new Error("Selected player is not active or registered");
     }
 
     let finalPoints: number;
@@ -555,7 +618,47 @@ export const DataStore = {
       status: "accepted",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      player: player,
+      game: game,
     };
+
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+
+      // Ensure volunteer_id is a valid UUID for Supabase FK
+      let supaVolunteerId = params.volunteer_id;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(supaVolunteerId);
+      if (!isUuid) {
+        supaVolunteerId = "b5a1e29d-eed5-4685-8136-9add7d03d77b"; // registered default volunteer profile
+      }
+
+      const { data, error } = await supa
+        .from("score_attempts")
+        .insert({
+          id: attempt.id,
+          player_id: attempt.player_id,
+          game_id: attempt.game_id,
+          volunteer_id: supaVolunteerId,
+          scoring_method: attempt.scoring_method,
+          raw_score: attempt.raw_score,
+          awarded_points: attempt.awarded_points,
+          scoring_rule_id: attempt.scoring_rule_id,
+          rule_version: attempt.rule_version,
+          idempotency_key: attempt.idempotency_key,
+          status: attempt.status,
+          created_at: attempt.created_at,
+          updated_at: attempt.updated_at,
+        })
+        .select("*, player:players(*), game:games(*)")
+        .single();
+
+      if (error) {
+        console.error("Supabase score_attempts insert warning:", error);
+      } else if (data) {
+        if (data.player) attempt.player = data.player;
+        if (data.game) attempt.game = data.game;
+      }
+    }
 
     memScoreAttempts.unshift(attempt);
 
@@ -573,6 +676,29 @@ export const DataStore = {
   },
 
   async getRecentAttempts(volunteerId?: string, limit: number = 50): Promise<ScoreAttempt[]> {
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      let q = supa
+        .from("score_attempts")
+        .select("*, player:players(*), game:games(*)")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      const { data, error } = await q;
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          ...d,
+          volunteer: {
+            id: d.volunteer_id,
+            display_name: "Volunteer",
+            role: "volunteer",
+            volunteer_code: "VOL-01",
+            is_active: true,
+            created_at: d.created_at,
+            updated_at: d.updated_at,
+          },
+        }));
+      }
+    }
     let list = [...memScoreAttempts];
     if (volunteerId) {
       list = list.filter((a) => a.volunteer_id === volunteerId);
@@ -581,6 +707,27 @@ export const DataStore = {
   },
 
   async getAllScoreAttempts(): Promise<ScoreAttempt[]> {
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { data, error } = await supa
+        .from("score_attempts")
+        .select("*, player:players(*), game:games(*)")
+        .order("created_at", { ascending: false });
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          ...d,
+          volunteer: {
+            id: d.volunteer_id,
+            display_name: "Volunteer",
+            role: "volunteer",
+            volunteer_code: "VOL-01",
+            is_active: true,
+            created_at: d.created_at,
+            updated_at: d.updated_at,
+          },
+        }));
+      }
+    }
     return memScoreAttempts.map(populateAttempt);
   },
 
@@ -803,6 +950,15 @@ export const DataStore = {
     const players = await this.getPlayers();
     const attempts = await this.getAllScoreAttempts();
 
+    // Keep the calculation usable when a partially populated database is mixed
+    // with fallback data by retaining players included in score relations.
+    const playersById = new Map(players.map((player) => [player.id, player]));
+    for (const attempt of attempts) {
+      if (attempt.player && !playersById.has(attempt.player_id)) {
+        playersById.set(attempt.player_id, attempt.player);
+      }
+    }
+
     const attemptsByPlayer = new Map<string, ScoreAttempt[]>();
     for (const att of attempts) {
       if (att.status !== "accepted") continue;
@@ -812,7 +968,7 @@ export const DataStore = {
       attemptsByPlayer.get(att.player_id)!.push(att);
     }
 
-    const leaderboard = players.map((player) => {
+    const leaderboard = Array.from(playersById.values()).map((player) => {
       const pAttempts = attemptsByPlayer.get(player.id) || [];
       const bestMap = calculateBestScoresPerGame(pAttempts);
 

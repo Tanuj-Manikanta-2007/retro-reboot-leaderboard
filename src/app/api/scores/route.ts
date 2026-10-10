@@ -8,8 +8,9 @@ export async function POST(req: NextRequest) {
     const parsed = scoreSubmissionSchema.safeParse(body);
 
     if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0]?.message || "Validation failed";
       return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.format() },
+        { error: firstIssue, details: parsed.error.format() },
         { status: 400 }
       );
     }

@@ -1,26 +1,50 @@
 import { NextResponse } from "next/server";
 import { DataStore } from "@/services/data-store";
 
-export async function GET() {
-  try {
-    const leaderboard = await DataStore.getLeaderboard();
-    const games = await DataStore.getGames();
+import { isSupabaseConfigured, createAdminClient } from "@/lib/supabase/server";
 
-    // Sanitize fields - NEVER expose email or mobile phone to public
-    const publicData = leaderboard.map((item) => ({
-      rank: item.rank,
-      player_id: item.player_id,
-      full_name: item.full_name,
-      university_roll_number: item.university_roll_number,
-      total_points: item.total_points,
-      games_played: item.games_played,
-      game_scores: item.game_scores,
-    }));
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  try {
+    const isSupa = isSupabaseConfigured();
+    const supa = createAdminClient();
+    const { data: directGames, error: gErr } = await supa.from("games").select("*");
+    const { data: directPlayers, error: pErr } = await supa.from("players").select("*");
+    const { data: directAttempts, error: aErr } = await supa.from("score_attempts").select("*");
+    let gamesError = null;
+    let gamesRaw: any = null;
+    try {
+      gamesRaw = await DataStore.getGames();
+    } catch (e: any) {
+      gamesError = e.message;
+    }
+
+    let lbError = null;
+    let lbRaw: any = null;
+    try {
+      lbRaw = await DataStore.getLeaderboard();
+    } catch (e: any) {
+      lbError = e.message;
+    }
+
+    const responseGames = directGames && directGames.length > 0 ? directGames : gamesRaw;
 
     return NextResponse.json({
       success: true,
-      leaderboard: publicData,
-      games: games.filter((g) => g.is_active),
+      isSupa,
+      directGamesCount: directGames ? directGames.length : 0,
+      directPlayersCount: directPlayers ? directPlayers.length : 0,
+      directAttemptsCount: directAttempts ? directAttempts.length : 0,
+      gErr,
+      pErr,
+      aErr,
+      gamesError,
+      lbError,
+      debugGamesCount: gamesRaw ? gamesRaw.length : 0,
+      debugLeaderboardCount: lbRaw ? lbRaw.length : 0,
+      leaderboard: lbRaw,
+      games: responseGames,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to load leaderboard" }, { status: 500 });

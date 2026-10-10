@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Trophy, Medal, Search, RefreshCw, Gamepad2, Calendar, MapPin, Clock, Flame } from "lucide-react";
-import { Game } from "@/types/database";
+import { Game, LeaderboardEntry } from "@/types/database";
 
 export default function LeaderboardPage() {
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [selectedGameFilter, setSelectedGameFilter] = useState<string>("overall");
   const [search, setSearch] = useState("");
@@ -22,9 +22,9 @@ export default function LeaderboardPage() {
     try {
       const res = await fetch("/api/leaderboard");
       const data = await res.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.leaderboard)) {
         setLeaderboard(data.leaderboard);
-        setGames(data.games);
+        setGames(Array.isArray(data.games) ? data.games : []);
       }
     } catch (e) {
       console.error(e);
