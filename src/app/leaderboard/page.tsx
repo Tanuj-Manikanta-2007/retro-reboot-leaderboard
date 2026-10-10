@@ -5,6 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { Trophy, Medal, Search, RefreshCw, Gamepad2, Calendar, MapPin, Clock, Flame } from "lucide-react";
 import { Game, LeaderboardEntry } from "@/types/database";
+type LeaderboardDisplayEntry = LeaderboardEntry & {
+  game_points: number;
+  game_raw_score: number | null;
+  display_rank: number;
+};
 
 export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -35,7 +40,12 @@ export default function LeaderboardPage() {
 
   // Filter & Rank computation
   const filteredData = useMemo(() => {
-    let list = [...leaderboard];
+    let list: LeaderboardDisplayEntry[] = leaderboard.map((item) => ({
+        ...item,
+        game_points: 0,
+        game_raw_score: null,
+        display_rank: item.rank,
+      }));
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -201,8 +211,7 @@ export default function LeaderboardPage() {
                 </tr>
               ) : (
                 filteredData.map((item) => {
-                  const rank =
-                  selectedGameFilter === "overall" ? item.rank : filteredData.findIndex((entry) => entry.player_id === item.player_id) + 1;
+                  const rank = item.display_rank;
                   const isTop3 = rank <= 3;
                   return (
                     <tr
