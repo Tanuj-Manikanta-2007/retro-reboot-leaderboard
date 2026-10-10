@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b0d14;
+  --foreground: #f8fafc;
+  --cogaan-gold: #f5b800;
+  --neon-cyan: #06b6d4;
+  --neon-violet: #8b5cf6;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Subtle CRT scanline effect on retro cards */
+.crt-scanlines {
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%,
+    rgba(0, 0, 0, 0.25) 50%
+  ),
+  linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.03)
+  );
+  background-size: 100% 3px, 6px 100%;
+}
+
+/* Arcade glowing borders and buttons */
+.arcade-border-gold {
+  border: 1px solid rgba(245, 184, 0, 0.4);
+  box-shadow: 0 0 15px -3px rgba(245, 184, 0, 0.2);
+}
+
+.arcade-border-cyan {
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 15px -3px rgba(6, 182, 212, 0.2);
+}
+
+.arcade-border-violet {
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow: 0 0 15px -3px rgba(139, 92, 246, 0.2);
+}
+
+/* Pixel badge styling matching the Retro 2.0 poster */
+.pixel-badge {
+  font-family: monospace;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 700;
+  border-radius: 4px;
+}
+
+/* Custom scrollbar for data tables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0d14;
+}
+::-webkit-scrollbar-thumb {
+  background: #252e47;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #f5b800;
+}

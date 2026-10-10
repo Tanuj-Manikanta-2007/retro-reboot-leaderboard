@@ -1,0 +1,31 @@
+import { NextRequest, NextResponse } from "next/server";
+import { playerSchema } from "@/lib/validation/schemas";
+import { DataStore } from "@/services/data-store";
+
+export async function GET() {
+  try {
+    const players = await DataStore.getPlayers();
+    return NextResponse.json({ success: true, data: players });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to fetch players" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const parsed = playerSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.format() },
+        { status: 400 }
+      );
+    }
+
+    const newPlayer = await DataStore.createPlayer(parsed.data);
+    return NextResponse.json({ success: true, data: newPlayer }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to register player" }, { status: 400 });
+  }
+}
