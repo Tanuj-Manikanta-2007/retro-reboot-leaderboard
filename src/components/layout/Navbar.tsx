@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Trophy, Gamepad2, ShieldAlert, Sparkles, MapPin, Calendar, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -92,6 +93,7 @@ export function Navbar() {
             );
           })}
         </nav>
+        <ThemeToggle />
       </div>
     </header>
   );
