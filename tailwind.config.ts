@@ -11,11 +11,11 @@ const config: Config = {
     extend: {
       colors: {
         arcade: {
-          bg: "#0B0D14",
-          surface: "#121622",
-          card: "#181D2D",
-          border: "#252E47",
-          muted: "#64748B",
+          bg: "rgb(var(--arcade-bg) / <alpha-value>)",
+          surface: "rgb(var(--arcade-surface) / <alpha-value>)",
+          card: "rgb(var(--arcade-card) / <alpha-value>)",
+          border: "rgb(var(--arcade-border) / <alpha-value>)",
+          muted: "rgb(var(--arcade-muted) / <alpha-value>)",
         },
         cogaan: {
           gold: "#F5B800",

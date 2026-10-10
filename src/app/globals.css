@@ -2,13 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+
 :root {
+  color-scheme: dark;
   --background: #0b0d14;
   --foreground: #f8fafc;
+
+  --arcade-bg: 11 13 20;
+  --arcade-surface: 18 22 34;
+  --arcade-card: 24 29 45;
+  --arcade-border: 37 46 71;
+  --arcade-muted: 100 116 139;
+
   --cogaan-gold: #f5b800;
   --neon-cyan: #06b6d4;
   --neon-violet: #8b5cf6;
 }
+
+:root:not(.dark) {
+  color-scheme: light;
+  --background: #f8fafc;
+  --foreground: #172033;
+
+  --arcade-bg: 248 250 252;
+  --arcade-surface: 241 245 249;
+  --arcade-card: 255 255 255;
+  --arcade-border: 203 213 225;
+  --arcade-muted: 71 85 105;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Light mode: improve contrast without fading entire components */
+:root:not(.dark) .text-white {
+  color: #172033;
+}
+
+:root:not(.dark) .text-slate-100,
+:root:not(.dark) .text-slate-200,
+:root:not(.dark) .text-slate-300 {
+  color: #334155;
+}
+
+:root:not(.dark) .text-slate-400,
+:root:not(.dark) .text-slate-500,
+:root:not(.dark) .text-slate-600 {
+  color: #64748b;
+}
+
+/* Keep decorative scanlines subtle rather than washing out the content */
+:root:not(.dark) .crt-scanlines {
+  background: none;
+}
+
 
 body {
   color: var(--foreground);
