@@ -653,11 +653,16 @@ export const DataStore = {
         .single();
 
       if (error) {
-        console.error("Supabase score_attempts insert warning:", error);
-      } else if (data) {
-        if (data.player) attempt.player = data.player;
-        if (data.game) attempt.game = data.game;
+        console.error("Supabase score_attempts insert failed:", error);
+        throw new Error(`Failed to save score: ${error.message}`);
       }
+
+      if (!data) {
+        throw new Error("Score insertion returned no data");
+      }
+
+      if (data.player) attempt.player = data.player;
+      if (data.game) attempt.game = data.game;
     }
 
     memScoreAttempts.unshift(attempt);
