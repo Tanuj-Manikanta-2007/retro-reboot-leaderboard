@@ -139,8 +139,8 @@ export const scoreCorrectionSchema = z
 export const pinVerificationSchema = z.object({
   role: z.enum(["admin", "volunteer"]),
   pin: z.string().min(4).max(6),
-  volunteerName: z.string().trim().min(2, "Volunteer name must be at least 2 characters").optional(),
-  volunteerCode: z.string().trim().min(2, "Volunteer code must be at least 2 characters").optional(),
+  volunteerName: z.string().trim().optional().nullable().or(z.literal("")),
+  volunteerCode: z.string().trim().optional().nullable().or(z.literal("")),
 });
 
 // 7. PROTECTED FLUSH DATA SCHEMA

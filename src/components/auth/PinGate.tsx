@@ -37,15 +37,20 @@ export function PinGate({ role, onSuccess }: PinGateProps) {
     setLoading(true);
 
     try {
+      const payload: Record<string, string> = {
+        role,
+        pin,
+      };
+
+      if (role === "volunteer") {
+        payload.volunteerName = volunteerName.trim();
+        payload.volunteerCode = volunteerCode.trim().toUpperCase();
+      }
+
       const res = await fetch("/api/auth/pin-verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role,
-          pin,
-          volunteerName: volunteerName.trim(),
-          volunteerCode: volunteerCode.trim().toUpperCase(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
