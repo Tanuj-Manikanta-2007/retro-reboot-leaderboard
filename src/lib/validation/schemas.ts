@@ -1,22 +1,57 @@
 import { z } from "zod";
 import { normalizeRollNumber } from "../utils";
 
-// 1. PLAYER VALIDATION
-export const playerSchema = z.object({
-  full_name: z.string().trim().min(2, "Player name must be at least 2 characters"),
-  university_roll_number: z
-    .string()
-    .trim()
-    .min(2, "Roll number must be at least 2 characters")
-    .transform(normalizeRollNumber),
-  university_email: z.string().trim().email("Invalid university email address"),
-  mobile_number: z
-    .string()
-    .trim()
-    .regex(/^[0-9+\s\-()]{7,15}$/, "Invalid mobile phone number format"),
-  discovery_source: z.string().min(1, "Please select how you heard about the event"),
-  is_active: z.boolean().default(true),
-});
+// 1. PLAYER VALIDATION (Email and Phone are optional alternatives; at least one required)
+export const playerSchema = z
+  .object({
+    full_name: z.string().trim().min(2, "Player name must be at least 2 characters"),
+    university_roll_number: z
+      .string()
+      .trim()
+      .min(2, "Roll number must be at least 2 characters")
+      .transform(normalizeRollNumber),
+    university_email: z.string().trim().optional().nullable().or(z.literal("")),
+    mobile_number: z.string().trim().optional().nullable().or(z.literal("")),
+    discovery_source: z.string().min(1, "Please select how you heard about the event"),
+    is_active: z.boolean().default(true),
+  })
+  .superRefine((data, ctx) => {
+    const rawEmail = (data.university_email || "").trim();
+    const rawMobile = (data.mobile_number || "").trim();
+
+    const hasEmail = rawEmail.length > 0;
+    const hasMobile = rawMobile.length > 0;
+
+    if (!hasEmail && !hasMobile) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one contact method (email or phone number) must be provided.",
+        path: ["university_email"],
+      });
+    }
+
+    if (hasEmail) {
+      const emailTest = z.string().email().safeParse(rawEmail);
+      if (!emailTest.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid university email address format.",
+          path: ["university_email"],
+        });
+      }
+    }
+
+    if (hasMobile) {
+      const mobileRegex = /^[0-9+\s\-()]{7,15}$/;
+      if (!mobileRegex.test(rawMobile)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid mobile phone number format.",
+          path: ["mobile_number"],
+        });
+      }
+    }
+  });
 
 // 2. GAME VALIDATION
 export const gameSchema = z.object({
@@ -104,4 +139,16 @@ export const scoreCorrectionSchema = z
 export const pinVerificationSchema = z.object({
   role: z.enum(["admin", "volunteer"]),
   pin: z.string().min(4).max(6),
+  volunteerName: z.string().trim().min(2, "Volunteer name must be at least 2 characters").optional(),
+  volunteerCode: z.string().trim().min(2, "Volunteer code must be at least 2 characters").optional(),
+});
+
+// 7. PROTECTED FLUSH DATA SCHEMA
+export const flushDataSchema = z.object({
+  confirmation_text: z.string(),
+  password: z.string().min(1, "Flush password is required"),
+  flushScores: z.boolean().optional(),
+  flushPlayers: z.boolean().optional(),
+  flushGames: z.boolean().optional(),
+  flushAuditLogs: z.boolean().optional(),
 });

@@ -140,7 +140,8 @@ export async function generateScoreHistoryExport(attempts: ScoreAttempt[]): Prom
     { header: "Scoring Method", key: "method" },
     { header: "Raw Score", key: "raw_score" },
     { header: "Awarded Points", key: "points" },
-    { header: "Volunteer ID / Code", key: "volunteer" },
+    { header: "Volunteer Name", key: "volunteer_name" },
+    { header: "Volunteer Code", key: "volunteer_code" },
     { header: "Rule Version", key: "rule_version" },
     { header: "Status", key: "status" },
   ];
@@ -155,7 +156,8 @@ export async function generateScoreHistoryExport(attempts: ScoreAttempt[]): Prom
       method: att.scoring_method,
       raw_score: att.raw_score !== null ? att.raw_score : "N/A (Direct)",
       points: att.awarded_points,
-      volunteer: sanitizeExcelString(att.volunteer?.volunteer_code || att.volunteer_id),
+      volunteer_name: sanitizeExcelString(att.volunteer?.display_name || "Unknown Volunteer"),
+      volunteer_code: sanitizeExcelString(att.volunteer?.volunteer_code || "N/A"),
       rule_version: att.rule_version || "Manual",
       status: att.status,
     });

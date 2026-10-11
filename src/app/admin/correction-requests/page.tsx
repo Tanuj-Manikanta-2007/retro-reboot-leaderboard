@@ -245,7 +245,9 @@ export default function AdminCorrectionsPage() {
                     <span>
                       Requested by Volunteer:{" "}
                       <strong className="text-slate-200">
-                        {req.volunteer?.display_name || req.requested_by}
+                        {req.volunteer
+                          ? `${req.volunteer.display_name} (${req.volunteer.volunteer_code || "Staff"})`
+                          : req.requested_by}
                       </strong>
                     </span>
                     {req.reviewed_by && (

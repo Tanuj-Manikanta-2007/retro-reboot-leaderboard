@@ -24,11 +24,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let volunteerData: { id: string; code: string; name: string } | undefined;
+
+    if (role === "volunteer") {
+      const { volunteerName, volunteerCode } = parsed.data;
+      if (!volunteerName?.trim() || !volunteerCode?.trim()) {
+        return NextResponse.json(
+          { error: "Volunteer name and staff code are required for individual volunteer verification" },
+          { status: 400 }
+        );
+      }
+
+      const { DataStore } = await import("@/services/data-store");
+      const profile = await DataStore.getOrCreateVolunteerProfile({
+        volunteerCode: volunteerCode.trim(),
+        displayName: volunteerName.trim(),
+      });
+
+      volunteerData = {
+        id: profile.id,
+        code: profile.volunteer_code || volunteerCode.trim().toUpperCase(),
+        name: profile.display_name || volunteerName.trim(),
+      };
+    }
+
     // Set secure cookie for session role access
     const response = NextResponse.json({
       success: true,
       role,
       message: `Verified ${role} event access PIN`,
+      volunteer: volunteerData,
     });
 
     response.cookies.set(`retro_${role}_pin_verified`, "true", {
@@ -39,10 +64,20 @@ export async function POST(req: NextRequest) {
       path: "/",
     });
 
+    if (volunteerData) {
+      response.cookies.set("retro_volunteer_identity", JSON.stringify(volunteerData), {
+        httpOnly: false, // Accessible for client-side display
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 12,
+        path: "/",
+      });
+    }
+
     return response;
   } catch (err: any) {
     return NextResponse.json(
-      { error: "Internal server error during PIN verification" },
+      { error: err.message || "Internal server error during PIN verification" },
       { status: 500 }
     );
   }

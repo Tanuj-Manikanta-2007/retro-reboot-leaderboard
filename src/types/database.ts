@@ -18,8 +18,8 @@ export interface Player {
   id: string;
   full_name: string;
   university_roll_number: string;
-  university_email: string;
-  mobile_number: string;
+  university_email?: string | null;
+  mobile_number?: string | null;
   discovery_source: string;
   is_active: boolean;
   created_by?: string | null;
@@ -166,4 +166,20 @@ export interface LeaderboardEntry {
   games_played: number;
   rank: number;
   game_scores?: Record<string, { raw_score: number | null; points: number }>;
+}
+
+export interface VolunteerActivityItem {
+  id: string;
+  volunteer_id: string;
+  volunteer_name: string;
+  volunteer_code: string;
+  player_roll_number: string;
+  player_name: string;
+  game_name: string;
+  action: string;
+  score_change: string;
+  points_change: string;
+  timestamp: string;
+  status: string;
+  correction_details?: string;
 }

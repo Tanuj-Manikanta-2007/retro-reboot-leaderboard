@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { History, ArrowLeft, Search, Filter, RefreshCw, Eye, X, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import { History, ArrowLeft, Search, Filter, RefreshCw, Eye, X, FileSpreadsheet, ShieldAlert, Trophy } from "lucide-react";
+import { VolunteerDetailModal } from "@/components/admin/VolunteerDetailModal";
+import { BestVolunteerModal } from "@/components/admin/BestVolunteerModal";
 
 export default function VolunteerActivityPage() {
   const [activities, setActivities] = useState<any[]>([]);
@@ -11,6 +13,8 @@ export default function VolunteerActivityPage() {
   const [selectedAction, setSelectedAction] = useState("all");
   const [correctionsOnly, setCorrectionsOnly] = useState(false);
   const [activeDetail, setActiveDetail] = useState<any | null>(null);
+  const [selectedVolunteer, setSelectedVolunteer] = useState<{ name: string; code: string; id: string } | null>(null);
+  const [showBestVolunteerModal, setShowBestVolunteerModal] = useState(false);
 
   useEffect(() => {
     fetchActivities();
@@ -44,6 +48,7 @@ export default function VolunteerActivityPage() {
         act.player_name.toLowerCase().includes(q) ||
         act.player_roll_number.toLowerCase().includes(q) ||
         act.volunteer_name.toLowerCase().includes(q) ||
+        (act.volunteer_code && act.volunteer_code.toLowerCase().includes(q)) ||
         act.game_name.toLowerCase().includes(q)
       );
     }
@@ -70,13 +75,24 @@ export default function VolunteerActivityPage() {
           </p>
         </div>
 
-        <button
-          onClick={fetchActivities}
-          className="px-4 py-2 bg-arcade-surface hover:bg-arcade-card border border-arcade-border text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-2 self-start sm:self-auto transition-colors"
-        >
-          <RefreshCw className="w-4 h-4 text-neon-violet" />
-          <span>Refresh Activity</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <button
+            onClick={() => setShowBestVolunteerModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-cogaan-gold to-amber-400 hover:from-amber-400 hover:to-cogaan-gold text-black rounded-xl text-xs font-black flex items-center gap-2 shadow-neon transition-all"
+            title="View Top Volunteer Recognition"
+          >
+            <Trophy className="w-4 h-4 text-black" />
+            <span>Best Volunteer</span>
+          </button>
+
+          <button
+            onClick={fetchActivities}
+            className="px-4 py-2 bg-arcade-surface hover:bg-arcade-card border border-arcade-border text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4 text-neon-violet" />
+            <span>Refresh Activity</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -130,7 +146,8 @@ export default function VolunteerActivityPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-arcade-card/80 text-slate-400 border-b border-arcade-border font-mono">
               <tr>
-                <th className="p-3">Volunteer</th>
+                <th className="p-3">Volunteer Name</th>
+                <th className="p-3">Volunteer Code</th>
                 <th className="p-3">Roll No</th>
                 <th className="p-3">Player Name</th>
                 <th className="p-3">Game</th>
@@ -146,26 +163,45 @@ export default function VolunteerActivityPage() {
             <tbody className="divide-y divide-arcade-border/40">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-slate-500">
+                  <td colSpan={12} className="p-8 text-center text-slate-500">
                     Loading activity records...
                   </td>
                 </tr>
               ) : filteredActivities.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-slate-500">
+                  <td colSpan={12} className="p-8 text-center text-slate-500">
                     No activity matching filters found.
                   </td>
                 </tr>
               ) : (
                 filteredActivities.map((act) => (
                   <tr key={act.id} className="hover:bg-arcade-card/30 transition-colors">
-                    {/* 1. Volunteer */}
-                    <td className="p-3 font-semibold text-slate-200">{act.volunteer_name}</td>
-                    {/* 2. Roll No */}
+                    {/* 1. Volunteer Name - Clickable button opening VolunteerDetailModal */}
+                    <td className="p-3 font-semibold text-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedVolunteer({
+                          name: act.volunteer_name,
+                          code: act.volunteer_code || "N/A",
+                          id: act.volunteer_id,
+                        })}
+                        className="text-left font-bold text-white hover:text-cogaan-gold hover:underline focus:outline-none transition-colors"
+                        title="Click to view volunteer statistics & activity history"
+                      >
+                        {act.volunteer_name}
+                      </button>
+                    </td>
+                    {/* 2. Volunteer Code */}
+                    <td className="p-3 font-mono text-[11px] font-bold text-cogaan-gold">
+                      <span className="px-2 py-0.5 rounded bg-cogaan-gold/10 border border-cogaan-gold/30">
+                        {act.volunteer_code || "N/A"}
+                      </span>
+                    </td>
+                    {/* 3. Roll No */}
                     <td className="p-3 font-mono text-cogaan-gold font-bold">{act.player_roll_number}</td>
-                    {/* 3. Player Name */}
+                    {/* 4. Player Name */}
                     <td className="p-3 font-medium text-white">{act.player_name}</td>
-                    {/* 4. Game */}
+                    {/* 5. Game */}
                     <td className="p-3 text-slate-300">{act.game_name}</td>
                     {/* 5. Action */}
                     <td className="p-3">
@@ -242,8 +278,14 @@ export default function VolunteerActivityPage() {
                 <span className="font-bold text-white">{activeDetail.action}</span>
               </div>
               <div className="flex justify-between p-2 bg-arcade-card rounded-lg">
-                <span className="text-slate-400">Volunteer:</span>
+                <span className="text-slate-400">Volunteer Name:</span>
                 <span className="font-bold text-white">{activeDetail.volunteer_name}</span>
+              </div>
+              <div className="flex justify-between p-2 bg-arcade-card rounded-lg">
+                <span className="text-slate-400">Volunteer Code:</span>
+                <span className="font-mono font-bold text-cogaan-gold">
+                  {activeDetail.volunteer_code || "N/A"}
+                </span>
               </div>
               <div className="flex justify-between p-2 bg-arcade-card rounded-lg">
                 <span className="text-slate-400">Participant:</span>
@@ -287,6 +329,25 @@ export default function VolunteerActivityPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Volunteer Detail Modal (Statistics & History) */}
+      {selectedVolunteer && (
+        <VolunteerDetailModal
+          volunteerName={selectedVolunteer.name}
+          volunteerCode={selectedVolunteer.code}
+          volunteerId={selectedVolunteer.id}
+          allActivities={activities}
+          onClose={() => setSelectedVolunteer(null)}
+        />
+      )}
+
+      {/* Best Volunteer Recognition Modal */}
+      {showBestVolunteerModal && (
+        <BestVolunteerModal
+          activities={activities}
+          onClose={() => setShowBestVolunteerModal(false)}
+        />
       )}
     </div>
   );

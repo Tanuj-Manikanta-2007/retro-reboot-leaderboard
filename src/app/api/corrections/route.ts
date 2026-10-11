@@ -24,7 +24,21 @@ export async function POST(req: NextRequest) {
       reason,
     } = parsed.data;
 
-    const volunteerId = req.headers.get("x-volunteer-id") || body.requested_by || "vol-1";
+    let volunteerId = req.headers.get("x-volunteer-id") || body.requested_by;
+    if (!volunteerId) {
+      const cookieIdentity = req.cookies.get("retro_volunteer_identity")?.value;
+      if (cookieIdentity) {
+        try {
+          const parsedIdent = JSON.parse(cookieIdentity);
+          volunteerId = parsedIdent.id || parsedIdent.code;
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (!volunteerId) {
+      volunteerId = "VOL-01";
+    }
 
     const correction = await DataStore.createCorrectionRequest({
       original_attempt_id,

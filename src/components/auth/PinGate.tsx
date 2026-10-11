@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 interface PinGateProps {
   role: "admin" | "volunteer";
-  onSuccess: (volunteerIdentity?: { code: string; name: string }) => void;
+  onSuccess: (volunteerIdentity?: { id?: string; code: string; name: string }) => void;
 }
 
 export function PinGate({ role, onSuccess }: PinGateProps) {
@@ -40,7 +40,12 @@ export function PinGate({ role, onSuccess }: PinGateProps) {
       const res = await fetch("/api/auth/pin-verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, pin }),
+        body: JSON.stringify({
+          role,
+          pin,
+          volunteerName: volunteerName.trim(),
+          volunteerCode: volunteerCode.trim().toUpperCase(),
+        }),
       });
 
       const data = await res.json();
@@ -51,7 +56,10 @@ export function PinGate({ role, onSuccess }: PinGateProps) {
 
       // Store volunteer identity locally for attribution if volunteer
       if (role === "volunteer") {
-        const identity = { code: volunteerCode.trim().toUpperCase(), name: volunteerName.trim() };
+        const identity = data.volunteer || {
+          code: volunteerCode.trim().toUpperCase(),
+          name: volunteerName.trim(),
+        };
         localStorage.setItem("retro_volunteer_identity", JSON.stringify(identity));
         onSuccess(identity);
       } else {

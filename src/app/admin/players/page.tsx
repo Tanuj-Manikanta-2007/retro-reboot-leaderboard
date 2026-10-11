@@ -19,7 +19,8 @@ export default function AdminPlayersPage() {
   // Form State
   const [fullName, setFullName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
-  const [email, setEmail] = useState("");
+  const [emailUsername, setEmailUsername] = useState("");
+  const [emailDomain, setEmailDomain] = useState("@gmail.com");
   const [mobile, setMobile] = useState("");
   const [source, setSource] = useState("Instagram");
 
@@ -46,6 +47,38 @@ export default function AdminPlayersPage() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    // Assemble and sanitize email if username provided
+    const sanitizedUsername = emailUsername.trim().replace(/@.*/, "").trim();
+    let finalEmail = "";
+
+    if (sanitizedUsername) {
+      if (!emailDomain) {
+        setError("Please select a valid email domain for the entered username.");
+        return;
+      }
+      finalEmail = `${sanitizedUsername}${emailDomain}`.toLowerCase();
+    } else if (emailUsername.trim() && !sanitizedUsername) {
+      setError("Please enter a valid email username before the domain.");
+      return;
+    }
+
+    const trimmedMobile = mobile.trim();
+
+    // Contact alternative validation: at least one required
+    if (!finalEmail && !trimmedMobile) {
+      setError("At least one contact method (email or phone number) must be provided.");
+      return;
+    }
+
+    if (trimmedMobile) {
+      const mobileRegex = /^[0-9+\s\-()]{7,15}$/;
+      if (!mobileRegex.test(trimmedMobile)) {
+        setError("Invalid mobile phone number format.");
+        return;
+      }
+    }
+
     setFormSubmitting(true);
 
     try {
@@ -55,8 +88,8 @@ export default function AdminPlayersPage() {
         body: JSON.stringify({
           full_name: fullName,
           university_roll_number: rollNumber,
-          university_email: email,
-          mobile_number: mobile,
+          university_email: finalEmail,
+          mobile_number: trimmedMobile,
           discovery_source: source,
           is_active: true,
         }),
@@ -70,7 +103,8 @@ export default function AdminPlayersPage() {
       setSuccess(`Player ${data.data.full_name} (${data.data.university_roll_number}) registered successfully!`);
       setFullName("");
       setRollNumber("");
-      setEmail("");
+      setEmailUsername("");
+      setEmailDomain("@gmail.com");
       setMobile("");
       setSource("Instagram");
       fetchPlayers();
@@ -101,7 +135,8 @@ export default function AdminPlayersPage() {
     return (
       p.full_name.toLowerCase().includes(q) ||
       p.university_roll_number.toLowerCase().includes(q) ||
-      p.university_email.toLowerCase().includes(q)
+      (p.university_email && p.university_email.toLowerCase().includes(q)) ||
+      (p.mobile_number && p.mobile_number.toLowerCase().includes(q))
     );
   });
 
@@ -199,31 +234,70 @@ export default function AdminPlayersPage() {
               </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                University Email <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="e.g., rahul.k@univ.edu"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-arcade-card border border-arcade-border rounded-lg text-sm text-white focus:outline-none focus:border-cogaan-gold"
-              />
+            {/* Contact Details Section: At least one required */}
+            <div className="pt-2 pb-1 border-t border-arcade-border/50">
+              <span className="text-[11px] font-mono uppercase text-cogaan-gold font-bold tracking-wider">
+                Contact Details (Provide Email or Phone)
+              </span>
             </div>
 
+            {/* University Email Input with Username + Domain Selector */}
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Mobile Number <span className="text-rose-400">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-300">
+                  Email Address <span className="text-slate-500 font-normal">(Optional if phone is provided)</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="pinnintitanuj"
+                    value={emailUsername}
+                    onChange={(e) => setEmailUsername(e.target.value.replace(/@.*/, ""))}
+                    className="w-full px-3 py-2 bg-arcade-card border border-arcade-border rounded-lg text-sm text-white focus:outline-none focus:border-cogaan-gold font-mono"
+                  />
+                </div>
+
+                <select
+                  value={emailDomain}
+                  onChange={(e) => setEmailDomain(e.target.value)}
+                  className="px-3 py-2 bg-arcade-card border border-arcade-border rounded-lg text-sm text-slate-200 focus:outline-none focus:border-cogaan-gold font-mono"
+                >
+                  <option value="@gmail.com">@gmail.com</option>
+                  <option value="@student.gitam.edu">@student.gitam.edu</option>
+                </select>
+              </div>
+
+              {/* Resulting Full Email Confirmation Preview */}
+              {emailUsername.trim() ? (
+                <div className="mt-1.5 px-2.5 py-1 rounded bg-arcade-card/80 border border-arcade-border/60 text-xs font-mono text-slate-300 flex items-center justify-between">
+                  <span className="text-slate-500 text-[11px]">Resulting Email:</span>
+                  <span className="text-cogaan-gold font-bold">
+                    {emailUsername.trim().replace(/@.*/, "")}{emailDomain}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                  Enter username without domain, or leave blank if providing phone
+                </p>
+              )}
+            </div>
+
+            {/* Mobile Number Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-300">
+                  Mobile Number <span className="text-slate-500 font-normal">(Optional if email is provided)</span>
+                </label>
+              </div>
               <input
                 type="tel"
-                required
                 placeholder="e.g., 9876543210"
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
-                className="w-full px-3 py-2 bg-arcade-card border border-arcade-border rounded-lg text-sm text-white focus:outline-none focus:border-cogaan-gold"
+                className="w-full px-3 py-2 bg-arcade-card border border-arcade-border rounded-lg text-sm text-white focus:outline-none focus:border-cogaan-gold font-mono"
               />
             </div>
 
@@ -310,8 +384,10 @@ export default function AdminPlayersPage() {
                       </td>
                       <td className="p-3 font-medium text-white">{player.full_name}</td>
                       <td className="p-3 hidden md:table-cell text-slate-400">
-                        <div>{player.university_email}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">{player.mobile_number}</div>
+                        <div>{player.university_email || <span className="text-slate-600 italic">No email</span>}</div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {player.mobile_number || <span className="text-slate-600 italic">No phone</span>}
+                        </div>
                       </td>
                       <td className="p-3 hidden lg:table-cell text-slate-400">
                         {player.discovery_source}

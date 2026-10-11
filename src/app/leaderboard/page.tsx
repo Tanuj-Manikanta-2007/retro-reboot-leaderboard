@@ -5,6 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Trophy, Medal, Search, RefreshCw, Gamepad2, Calendar, MapPin, Clock, Flame } from "lucide-react";
 import { Game, LeaderboardEntry } from "@/types/database";
+import { PlayerDetailModal } from "@/components/leaderboard/PlayerDetailModal";
+
 type LeaderboardDisplayEntry = LeaderboardEntry & {
   game_points: number;
   game_raw_score: number | null;
@@ -17,6 +19,7 @@ export default function LeaderboardPage() {
   const [selectedGameFilter, setSelectedGameFilter] = useState<string>("overall");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedPlayerForModal, setSelectedPlayerForModal] = useState<LeaderboardEntry | null>(null);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -244,12 +247,17 @@ export default function LeaderboardPage() {
                         )}
                       </td>
 
-                      {/* Participant Name */}
+                      {/* Participant Name - Clickable button opening PlayerDetailModal */}
                       <td className="p-4 font-bold text-white text-sm">
-                        <div className="flex items-center gap-2">
-                          <span>{item.full_name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPlayerForModal(item)}
+                          className="flex items-center gap-2 group text-left hover:text-cogaan-gold focus:outline-none focus:underline transition-colors"
+                          title="Click to view detailed score breakdown"
+                        >
+                          <span className="group-hover:underline underline-offset-2">{item.full_name}</span>
                           {rank === 1 && <Flame className="w-4 h-4 text-cogaan-gold animate-bounce" />}
-                        </div>
+                        </button>
                       </td>
 
                       {/* Roll Number */}
@@ -285,6 +293,14 @@ export default function LeaderboardPage() {
           </table>
         </div>
       </div>
+
+      {/* Interactive Detailed Score Breakdown Modal */}
+      <PlayerDetailModal
+        player={selectedPlayerForModal}
+        allLeaderboard={leaderboard}
+        games={games}
+        onClose={() => setSelectedPlayerForModal(null)}
+      />
     </div>
   );
 }

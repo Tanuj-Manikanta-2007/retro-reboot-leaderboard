@@ -23,8 +23,9 @@ export async function POST(req: NextRequest) {
     const parsed = playerSchema.safeParse(body);
 
     if (!parsed.success) {
+      const firstError = parsed.error.issues[0]?.message || "Validation failed";
       return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.format() },
+        { error: firstError, details: parsed.error.format() },
         { status: 400 }
       );
     }

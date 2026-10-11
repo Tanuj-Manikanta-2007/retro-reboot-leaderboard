@@ -7,10 +7,11 @@ import {
   ScoreCorrectionHistory,
   ScoreCorrectionRequest,
   ScoringRule,
-} from "@/types/database";
-import { isSupabaseConfigured, createAdminClient } from "@/lib/supabase/server";
+  VolunteerActivityItem,
+} from "../types/database";
+import { isSupabaseConfigured, createAdminClient } from "../lib/supabase/server";
 import { calculateBestScoresPerGame, compareAttempts, evaluateAutomaticScore } from "./scoring-service";
-import { normalizeRollNumber } from "@/lib/utils";
+import { normalizeRollNumber } from "../lib/utils";
 
 // In-Memory Fallback State (Active when NEXT_PUBLIC_SUPABASE_URL is placeholder)
 let memPlayers: Player[] = [
@@ -232,19 +233,43 @@ let memCorrectionRequests: ScoreCorrectionRequest[] = [];
 let memCorrectionHistory: ScoreCorrectionHistory[] = [];
 let memAuditLogs: AuditLog[] = [];
 
+let memProfiles: Profile[] = [
+  {
+    id: "b5a1e29d-eed5-4685-8136-9add7d03d77b",
+    display_name: "Volunteer Station",
+    role: "volunteer",
+    volunteer_code: "VOL-01",
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "6feb3768-7f68-4bdf-b840-e7a444809389",
+    display_name: "Tournament Admin",
+    role: "admin",
+    volunteer_code: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
 // Helper to populate relations on an attempt
 function populateAttempt(att: ScoreAttempt): ScoreAttempt {
   const p = att.player || memPlayers.find((x) => x.id === att.player_id);
   const g = att.game || memGames.find((x) => x.id === att.game_id);
+  const v =
+    att.volunteer ||
+    memProfiles.find((x) => x.id === att.volunteer_id || x.volunteer_code === att.volunteer_id);
   return {
     ...att,
     player: p,
     game: g,
-    volunteer: att.volunteer || {
+    volunteer: v || {
       id: att.volunteer_id,
-      display_name: att.volunteer_id === "vol-1" ? "Volunteer Alex" : "Staff Team",
+      display_name: "Unknown Volunteer",
       role: "volunteer",
-      volunteer_code: att.volunteer_id === "vol-1" ? "VOL-01" : "VOL-02",
+      volunteer_code: "N/A",
       is_active: true,
       created_at: att.created_at || new Date().toISOString(),
       updated_at: att.updated_at || new Date().toISOString(),
@@ -257,6 +282,115 @@ function populateAttempt(att: ScoreAttempt): ScoreAttempt {
 // -------------------------------------------------------------
 
 export const DataStore = {
+  async getOrCreateVolunteerProfile(params: {
+    volunteerCode: string;
+    displayName: string;
+  }): Promise<Profile> {
+    const normalizedCode = params.volunteerCode.trim().toUpperCase();
+    const displayName = params.displayName.trim();
+
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+
+      // Check existing profile by volunteer code
+      const { data: existing } = await supa
+        .from("profiles")
+        .select("*")
+        .eq("volunteer_code", normalizedCode)
+        .maybeSingle();
+
+      if (existing) {
+        if (displayName && existing.display_name !== displayName) {
+          const { data: updated } = await supa
+            .from("profiles")
+            .update({ display_name: displayName, updated_at: new Date().toISOString() })
+            .eq("id", existing.id)
+            .select()
+            .single();
+          if (updated) {
+            const idx = memProfiles.findIndex((p) => p.id === updated.id);
+            if (idx !== -1) memProfiles[idx] = updated;
+            else memProfiles.push(updated);
+            return updated;
+          }
+        }
+        return existing;
+      }
+
+      // Create new auth user and profile
+      const sanitizedCode = normalizedCode.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const email = `vol_${sanitizedCode}_${Date.now()}@retroreboot.cogaan.local`;
+      const { data: userRes } = await supa.auth.admin.createUser({
+        email,
+        password: crypto.randomUUID(),
+        email_confirm: true,
+        user_metadata: { role: "volunteer", volunteer_code: normalizedCode, display_name: displayName },
+      });
+
+      if (userRes?.user?.id) {
+        const newProfile: Profile = {
+          id: userRes.user.id,
+          display_name: displayName || `Volunteer ${normalizedCode}`,
+          role: "volunteer",
+          volunteer_code: normalizedCode,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data: inserted, error: insErr } = await supa
+          .from("profiles")
+          .insert(newProfile)
+          .select()
+          .single();
+
+        if (!insErr && inserted) {
+          const idx = memProfiles.findIndex((p) => p.id === inserted.id);
+          if (idx !== -1) memProfiles[idx] = inserted;
+          else memProfiles.push(inserted);
+          return inserted;
+        }
+      }
+    }
+
+    // In-memory fallback
+    const existingMem = memProfiles.find((p) => p.volunteer_code === normalizedCode);
+    if (existingMem) {
+      if (displayName) existingMem.display_name = displayName;
+      return existingMem;
+    }
+
+    const newMemProfile: Profile = {
+      id: crypto.randomUUID(),
+      display_name: displayName || `Volunteer ${normalizedCode}`,
+      role: "volunteer",
+      volunteer_code: normalizedCode,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    memProfiles.push(newMemProfile);
+    return newMemProfile;
+  },
+
+  async getVolunteerProfileById(idOrCode: string): Promise<Profile | null> {
+    if (!idOrCode) return null;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode);
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const query = isUuid
+        ? supa.from("profiles").select("*").eq("id", idOrCode).maybeSingle()
+        : supa.from("profiles").select("*").eq("volunteer_code", idOrCode.toUpperCase()).maybeSingle();
+      const { data } = await query;
+      if (data) return data;
+    }
+    return (
+      memProfiles.find(
+        (p) => p.id === idOrCode || (p.volunteer_code && p.volunteer_code === idOrCode.toUpperCase())
+      ) || null
+    );
+  },
+
   async getPlayers(): Promise<Player[]> {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
@@ -296,6 +430,8 @@ export const DataStore = {
       ...playerData,
       id: crypto.randomUUID(),
       university_roll_number: normalizedRoll,
+      university_email: playerData.university_email?.trim() || "",
+      mobile_number: playerData.mobile_number?.trim() || "",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -604,11 +740,24 @@ export const DataStore = {
       finalPoints = params.awarded_points;
     }
 
+    // Resolve volunteer ID to verified profile
+    let resolvedVolunteerId = params.volunteer_id;
+    const resolvedProfile = await this.getVolunteerProfileById(params.volunteer_id);
+    if (resolvedProfile) {
+      resolvedVolunteerId = resolvedProfile.id;
+    } else {
+      const newProf = await this.getOrCreateVolunteerProfile({
+        volunteerCode: params.volunteer_id,
+        displayName: `Volunteer ${params.volunteer_id.toUpperCase()}`,
+      });
+      resolvedVolunteerId = newProf.id;
+    }
+
     const attempt: ScoreAttempt = {
       id: crypto.randomUUID(),
       player_id: params.player_id,
       game_id: params.game_id,
-      volunteer_id: params.volunteer_id,
+      volunteer_id: resolvedVolunteerId,
       scoring_method: params.scoring_method,
       raw_score: params.raw_score !== undefined ? params.raw_score : null,
       awarded_points: finalPoints,
@@ -625,20 +774,13 @@ export const DataStore = {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
 
-      // Ensure volunteer_id is a valid UUID for Supabase FK
-      let supaVolunteerId = params.volunteer_id;
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(supaVolunteerId);
-      if (!isUuid) {
-        supaVolunteerId = "b5a1e29d-eed5-4685-8136-9add7d03d77b"; // registered default volunteer profile
-      }
-
       const { data, error } = await supa
         .from("score_attempts")
         .insert({
           id: attempt.id,
           player_id: attempt.player_id,
           game_id: attempt.game_id,
-          volunteer_id: supaVolunteerId,
+          volunteer_id: resolvedVolunteerId,
           scoring_method: attempt.scoring_method,
           raw_score: attempt.raw_score,
           awarded_points: attempt.awarded_points,
@@ -649,7 +791,7 @@ export const DataStore = {
           created_at: attempt.created_at,
           updated_at: attempt.updated_at,
         })
-        .select("*, player:players(*), game:games(*)")
+        .select("*, player:players(*), game:games(*), volunteer:profiles(*)")
         .single();
 
       if (error) {
@@ -663,6 +805,7 @@ export const DataStore = {
 
       if (data.player) attempt.player = data.player;
       if (data.game) attempt.game = data.game;
+      if (data.volunteer) attempt.volunteer = data.volunteer;
     }
 
     memScoreAttempts.unshift(attempt);
@@ -685,18 +828,23 @@ export const DataStore = {
       const supa = createAdminClient();
       let q = supa
         .from("score_attempts")
-        .select("*, player:players(*), game:games(*)")
+        .select("*, player:players(*), game:games(*), volunteer:profiles(*)")
         .order("created_at", { ascending: false })
         .limit(limit);
+
+      if (volunteerId) {
+        q = q.eq("volunteer_id", volunteerId);
+      }
+
       const { data, error } = await q;
       if (!error && data) {
         return data.map((d: any) => ({
           ...d,
-          volunteer: {
+          volunteer: d.volunteer || {
             id: d.volunteer_id,
-            display_name: "Volunteer",
+            display_name: "Unknown Volunteer",
             role: "volunteer",
-            volunteer_code: "VOL-01",
+            volunteer_code: "N/A",
             is_active: true,
             created_at: d.created_at,
             updated_at: d.updated_at,
@@ -716,16 +864,16 @@ export const DataStore = {
       const supa = createAdminClient();
       const { data, error } = await supa
         .from("score_attempts")
-        .select("*, player:players(*), game:games(*)")
+        .select("*, player:players(*), game:games(*), volunteer:profiles(*)")
         .order("created_at", { ascending: false });
       if (!error && data) {
         return data.map((d: any) => ({
           ...d,
-          volunteer: {
+          volunteer: d.volunteer || {
             id: d.volunteer_id,
-            display_name: "Volunteer",
+            display_name: "Unknown Volunteer",
             role: "volunteer",
-            volunteer_code: "VOL-01",
+            volunteer_code: "N/A",
             is_active: true,
             created_at: d.created_at,
             updated_at: d.updated_at,
@@ -746,8 +894,23 @@ export const DataStore = {
     reason: string;
     requested_by: string;
   }): Promise<ScoreCorrectionRequest> {
-    const orig = memScoreAttempts.find((a) => a.id === params.original_attempt_id);
+    let orig: ScoreAttempt | null = null;
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { data } = await supa.from("score_attempts").select("*").eq("id", params.original_attempt_id).maybeSingle();
+      if (data) orig = data;
+    }
+    if (!orig) {
+      orig = memScoreAttempts.find((a) => a.id === params.original_attempt_id) || null;
+    }
     if (!orig) throw new Error("Original score attempt not found");
+
+    // Resolve volunteer ID
+    let resolvedVolunteerId = params.requested_by;
+    const prof = await this.getVolunteerProfileById(resolvedVolunteerId);
+    if (prof) {
+      resolvedVolunteerId = prof.id;
+    }
 
     const req: ScoreCorrectionRequest = {
       id: crypto.randomUUID(),
@@ -765,11 +928,20 @@ export const DataStore = {
       requested_points: params.requested_points,
 
       reason: params.reason,
-      requested_by: params.requested_by,
+      requested_by: resolvedVolunteerId,
       status: "pending",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { error } = await supa.from("score_correction_requests").insert(req);
+      if (error) {
+        console.error("Supabase insert score_correction_requests error:", error);
+        throw new Error(`Failed to submit correction request: ${error.message}`);
+      }
+    }
 
     memCorrectionRequests.unshift(req);
 
@@ -779,7 +951,7 @@ export const DataStore = {
       entity_id: req.id,
       player_id: req.requested_player_id,
       game_id: req.requested_game_id,
-      volunteer_id: req.requested_by,
+      volunteer_id: resolvedVolunteerId,
       reason: req.reason,
       new_values: req,
     });
@@ -788,6 +960,7 @@ export const DataStore = {
   },
 
   populateCorrectionRequest(r: ScoreCorrectionRequest): ScoreCorrectionRequest {
+    const v = memProfiles.find((x) => x.id === r.requested_by || x.volunteer_code === r.requested_by);
     return {
       ...r,
       original_attempt: memScoreAttempts.find((a) => a.id === r.original_attempt_id),
@@ -795,11 +968,11 @@ export const DataStore = {
       original_game: memGames.find((g) => g.id === r.original_game_id),
       requested_player: memPlayers.find((p) => p.id === r.requested_player_id),
       requested_game: memGames.find((g) => g.id === r.requested_game_id),
-      volunteer: {
+      volunteer: v || {
         id: r.requested_by,
-        display_name: r.requested_by === "vol-1" ? "Volunteer Alex" : "Staff Team",
+        display_name: "Unknown Volunteer",
         role: "volunteer",
-        volunteer_code: "VOL-01",
+        volunteer_code: "N/A",
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -808,6 +981,30 @@ export const DataStore = {
   },
 
   async getCorrectionRequests(status?: "pending" | "approved" | "rejected"): Promise<ScoreCorrectionRequest[]> {
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      let q = supa
+        .from("score_correction_requests")
+        .select(`
+          *,
+          original_attempt:score_attempts(*),
+          original_player:players!score_correction_requests_original_player_id_fkey(*),
+          original_game:games!score_correction_requests_original_game_id_fkey(*),
+          requested_player:players!score_correction_requests_requested_player_id_fkey(*),
+          requested_game:games!score_correction_requests_requested_game_id_fkey(*),
+          volunteer:profiles!score_correction_requests_requested_by_fkey(*)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (status) {
+        q = q.eq("status", status);
+      }
+      const { data, error } = await q;
+      if (!error && data) {
+        return data as ScoreCorrectionRequest[];
+      }
+    }
+
     let list = [...memCorrectionRequests];
     if (status) {
       list = list.filter((r) => r.status === status);
@@ -821,47 +1018,193 @@ export const DataStore = {
     decision: "approved" | "rejected";
     decision_reason?: string;
   }): Promise<ScoreCorrectionRequest> {
-    const req = memCorrectionRequests.find((r) => r.id === params.request_id);
+    let req: ScoreCorrectionRequest | null = null;
+    if (isSupabaseConfigured()) {
+      const supa = createAdminClient();
+      const { data } = await supa
+        .from("score_correction_requests")
+        .select("*")
+        .eq("id", params.request_id)
+        .maybeSingle();
+      if (data) req = data;
+    }
+    if (!req) {
+      req = memCorrectionRequests.find((r) => r.id === params.request_id) || null;
+    }
     if (!req) throw new Error("Correction request not found");
     if (req.status !== "pending") throw new Error("This request has already been reviewed");
 
-    const origAttemptIndex = memScoreAttempts.findIndex((a) => a.id === req.original_attempt_id);
-    if (origAttemptIndex === -1) throw new Error("Original score attempt not found");
-    const origAttempt = memScoreAttempts[origAttemptIndex];
-
-    req.status = params.decision;
-    req.reviewed_by = params.admin_id;
-    req.reviewed_at = new Date().toISOString();
-    req.decision_reason = params.decision_reason || null;
-    req.updated_at = new Date().toISOString();
+    // Resolve valid admin_id UUID for Supabase
+    let supaAdminId = params.admin_id;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(supaAdminId);
+    if (!isUuid) {
+      supaAdminId = "6feb3768-7f68-4bdf-b840-e7a444809389"; // registered default tournament admin profile
+    }
 
     if (params.decision === "approved") {
-      // Atomic apply to score attempt
-      const updatedAttempt: ScoreAttempt = {
-        ...origAttempt,
-        player_id: req.requested_player_id,
-        game_id: req.requested_game_id,
-        scoring_method: req.requested_scoring_method,
-        raw_score: req.requested_raw_score,
-        awarded_points: req.requested_points,
-        updated_at: new Date().toISOString(),
-      };
-      memScoreAttempts[origAttemptIndex] = updatedAttempt;
+      // Validate requested points
+      if (req.requested_points < 1 || req.requested_points > 100) {
+        throw new Error(`Requested points must be between 1 and 100 (got ${req.requested_points})`);
+      }
 
-      // Append immutable correction history
+      if (isSupabaseConfigured()) {
+        const supa = createAdminClient();
+
+        // 1. Try atomic PostgreSQL RPC if deployed
+        let rpcSucceeded = false;
+        try {
+          const { data: rpcData, error: rpcErr } = await supa.rpc("approve_score_correction", {
+            p_request_id: req.id,
+            p_admin_id: supaAdminId,
+            p_decision_reason: params.decision_reason || "Approved by administrator",
+          });
+          if (!rpcErr && rpcData?.success) {
+            rpcSucceeded = true;
+          }
+        } catch {
+          // Fall back to client transactional updates below
+        }
+
+        if (!rpcSucceeded) {
+          // 2. Client-side sequential atomic updates with verification:
+          // Verify still pending
+          const { data: currentReq } = await supa
+            .from("score_correction_requests")
+            .select("*")
+            .eq("id", req.id)
+            .eq("status", "pending")
+            .single();
+
+          if (!currentReq) {
+            throw new Error("Score correction request has already been processed or is not pending");
+          }
+
+          // Supersede all other active attempts for target player-game combination
+          await supa
+            .from("score_attempts")
+            .update({ status: "superseded", updated_at: new Date().toISOString() })
+            .eq("player_id", req.requested_player_id)
+            .eq("game_id", req.requested_game_id)
+            .neq("id", req.original_attempt_id)
+            .eq("status", "accepted");
+
+          // Update the target attempt as the official accepted result
+          const { error: attErr } = await supa
+            .from("score_attempts")
+            .update({
+              player_id: req.requested_player_id,
+              game_id: req.requested_game_id,
+              scoring_method: req.requested_scoring_method,
+              raw_score: req.requested_raw_score,
+              awarded_points: req.requested_points,
+              status: "accepted",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", req.original_attempt_id);
+
+          if (attErr) {
+            throw new Error(`Failed to apply score correction to attempt: ${attErr.message}`);
+          }
+
+          // Record in immutable score_correction_history
+          const historyId = crypto.randomUUID();
+          await supa.from("score_correction_history").insert({
+            id: historyId,
+            request_id: req.id,
+            attempt_id: req.original_attempt_id,
+            old_player_id: req.original_player_id,
+            new_player_id: req.requested_player_id,
+            old_game_id: req.original_game_id,
+            new_game_id: req.requested_game_id,
+            old_scoring_method: req.original_scoring_method,
+            new_scoring_method: req.requested_scoring_method,
+            previous_raw_score: req.original_raw_score_snapshot,
+            new_raw_score: req.requested_raw_score,
+            previous_points: req.original_points_snapshot,
+            new_points: req.requested_points,
+            approved_by: supaAdminId,
+            approved_at: new Date().toISOString(),
+          });
+
+          // Mark request approved
+          await supa
+            .from("score_correction_requests")
+            .update({
+              status: "approved",
+              reviewed_by: supaAdminId,
+              reviewed_at: new Date().toISOString(),
+              decision_reason: params.decision_reason || "Approved by administrator",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", req.id);
+
+          // Append to audit_logs
+          await supa.from("audit_logs").insert({
+            id: crypto.randomUUID(),
+            actor_user_id: supaAdminId,
+            actor_role_snapshot: "admin",
+            action_type: "correction_approved",
+            entity_type: "score_attempts",
+            entity_id: req.original_attempt_id,
+            player_id: req.requested_player_id,
+            game_id: req.requested_game_id,
+            volunteer_id: req.requested_by,
+            reason: req.reason,
+            request_id: req.id,
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      // Sync in-memory fallback state:
+      // Supersede all other attempts for target player and game
+      for (const a of memScoreAttempts) {
+        if (
+          a.player_id === req.requested_player_id &&
+          a.game_id === req.requested_game_id &&
+          a.id !== req.original_attempt_id &&
+          a.status === "accepted"
+        ) {
+          a.status = "superseded";
+          a.updated_at = new Date().toISOString();
+        }
+      }
+
+      const origAttemptIndex = memScoreAttempts.findIndex((a) => a.id === req.original_attempt_id);
+      if (origAttemptIndex !== -1) {
+        const origAttempt = memScoreAttempts[origAttemptIndex];
+        const updatedAttempt: ScoreAttempt = {
+          ...origAttempt,
+          player_id: req.requested_player_id,
+          game_id: req.requested_game_id,
+          scoring_method: req.requested_scoring_method,
+          raw_score: req.requested_raw_score,
+          awarded_points: req.requested_points,
+          status: "accepted",
+          updated_at: new Date().toISOString(),
+        };
+        memScoreAttempts[origAttemptIndex] = updatedAttempt;
+      }
+
+      req.status = "approved";
+      req.reviewed_by = params.admin_id;
+      req.reviewed_at = new Date().toISOString();
+      req.decision_reason = params.decision_reason || null;
+      req.updated_at = new Date().toISOString();
+
       const historyRecord: ScoreCorrectionHistory = {
         id: crypto.randomUUID(),
         request_id: req.id,
-        attempt_id: origAttempt.id,
-        old_player_id: origAttempt.player_id,
+        attempt_id: req.original_attempt_id,
+        old_player_id: req.original_player_id,
         new_player_id: req.requested_player_id,
-        old_game_id: origAttempt.game_id,
+        old_game_id: req.original_game_id,
         new_game_id: req.requested_game_id,
-        old_scoring_method: origAttempt.scoring_method,
+        old_scoring_method: req.original_scoring_method,
         new_scoring_method: req.requested_scoring_method,
-        previous_raw_score: origAttempt.raw_score,
+        previous_raw_score: req.original_raw_score_snapshot,
         new_raw_score: req.requested_raw_score,
-        previous_points: origAttempt.awarded_points,
+        previous_points: req.original_points_snapshot,
         new_points: req.requested_points,
         approved_by: params.admin_id,
         approved_at: new Date().toISOString(),
@@ -871,15 +1214,50 @@ export const DataStore = {
       this.logAudit({
         action_type: "correction_approved",
         entity_type: "score_attempts",
-        entity_id: origAttempt.id,
+        entity_id: req.original_attempt_id,
         player_id: req.requested_player_id,
         game_id: req.requested_game_id,
         volunteer_id: req.requested_by,
         reason: req.reason,
-        old_values: origAttempt,
-        new_values: updatedAttempt,
+        request_id: req.id,
       });
     } else {
+      // Rejection
+      if (isSupabaseConfigured()) {
+        const supa = createAdminClient();
+        await supa
+          .from("score_correction_requests")
+          .update({
+            status: "rejected",
+            reviewed_by: supaAdminId,
+            reviewed_at: new Date().toISOString(),
+            decision_reason: params.decision_reason || "Admin rejected correction",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", req.id);
+
+        await supa.from("audit_logs").insert({
+          id: crypto.randomUUID(),
+          actor_user_id: supaAdminId,
+          actor_role_snapshot: "admin",
+          action_type: "correction_rejected",
+          entity_type: "score_correction_requests",
+          entity_id: req.id,
+          player_id: req.requested_player_id,
+          game_id: req.requested_game_id,
+          volunteer_id: req.requested_by,
+          reason: params.decision_reason || "Admin rejected correction",
+          request_id: req.id,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      req.status = "rejected";
+      req.reviewed_by = params.admin_id;
+      req.reviewed_at = new Date().toISOString();
+      req.decision_reason = params.decision_reason || null;
+      req.updated_at = new Date().toISOString();
+
       this.logAudit({
         action_type: "correction_rejected",
         entity_type: "score_correction_requests",
@@ -894,55 +1272,86 @@ export const DataStore = {
     return this.populateCorrectionRequest(req);
   },
 
-  async getVolunteerActivity(): Promise<Array<{
-    id: string;
-    volunteer_id: string;
-    volunteer_name: string;
-    player_roll_number: string;
-    player_name: string;
-    game_name: string;
-    action: string;
-    score_change: string;
-    points_change: string;
-    timestamp: string;
-    status: string;
-    correction_details?: string;
-  }>> {
+  async getVolunteerActivity(): Promise<VolunteerActivityItem[]> {
     if (isSupabaseConfigured()) {
       const supa = createAdminClient();
-      const { data: attempts } = await supa
-        .from("score_attempts")
-        .select("*, player:players(*), game:games(*)")
-        .order("created_at", { ascending: false })
-        .limit(50);
 
-      if (attempts && attempts.length > 0) {
-        return attempts.map((att: any) => ({
-          id: att.id,
-          volunteer_id: att.volunteer_id,
-          volunteer_name: att.volunteer_id === "b5a1e29d-eed5-4685-8136-9add7d03d77b" ? "Alex (VOL-01)" : "Volunteer Staff",
-          player_roll_number: att.player?.university_roll_number || "Unknown",
-          player_name: att.player?.full_name || "Unknown",
-          game_name: att.game?.name || "Unknown",
-          action: "Score Submitted",
-          score_change: att.raw_score !== null && att.raw_score !== undefined ? String(att.raw_score) : "Direct Manual",
-          points_change: `${att.awarded_points} pts`,
-          timestamp: att.created_at,
-          status: att.status,
-        }));
+      const [attemptsRes, requestsRes] = await Promise.all([
+        supa
+          .from("score_attempts")
+          .select("*, player:players(*), game:games(*), volunteer:profiles(*)")
+          .order("created_at", { ascending: false })
+          .limit(100),
+        supa
+          .from("score_correction_requests")
+          .select(`
+            *,
+            requested_player:players!score_correction_requests_requested_player_id_fkey(*),
+            requested_game:games!score_correction_requests_requested_game_id_fkey(*),
+            volunteer:profiles!score_correction_requests_requested_by_fkey(*)
+          `)
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ]);
+
+      const activities: VolunteerActivityItem[] = [];
+
+      if (attemptsRes.data && attemptsRes.data.length > 0) {
+        for (const att of attemptsRes.data) {
+          activities.push({
+            id: att.id,
+            volunteer_id: att.volunteer_id,
+            volunteer_name: att.volunteer?.display_name || "Unknown Volunteer",
+            volunteer_code: att.volunteer?.volunteer_code || "N/A",
+            player_roll_number: att.player?.university_roll_number || "Unknown",
+            player_name: att.player?.full_name || "Unknown",
+            game_name: att.game?.name || "Unknown",
+            action: "Score Submitted",
+            score_change: att.raw_score !== null && att.raw_score !== undefined ? String(att.raw_score) : "Direct Manual",
+            points_change: `${att.awarded_points} pts`,
+            timestamp: att.created_at,
+            status: att.status,
+          });
+        }
+      }
+
+      if (requestsRes.data && requestsRes.data.length > 0) {
+        for (const req of requestsRes.data) {
+          activities.push({
+            id: req.id,
+            volunteer_id: req.requested_by,
+            volunteer_name: req.volunteer?.display_name || "Unknown Volunteer",
+            volunteer_code: req.volunteer?.volunteer_code || "N/A",
+            player_roll_number: req.requested_player?.university_roll_number || "Unknown",
+            player_name: req.requested_player?.full_name || "Unknown",
+            game_name: req.requested_game?.name || "Unknown",
+            action: `Correction ${req.status === "approved" ? "Approved" : req.status === "rejected" ? "Rejected" : "Requested"}`,
+            score_change: `${req.original_raw_score_snapshot ?? "Manual"} -> ${req.requested_raw_score ?? "Manual"}`,
+            points_change: `${req.original_points_snapshot} -> ${req.requested_points} pts`,
+            timestamp: req.updated_at || req.created_at,
+            status: req.status,
+            correction_details: `Reason: ${req.reason}${req.decision_reason ? ` | Admin note: ${req.decision_reason}` : ""}`,
+          });
+        }
+      }
+
+      if (activities.length > 0) {
+        return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       }
     }
 
-    // Fallback to in-memory activity rows
-    const activities: Array<any> = [];
+    // In-memory fallback
+    const activities: VolunteerActivityItem[] = [];
 
     for (const att of memScoreAttempts) {
       const p = memPlayers.find((x) => x.id === att.player_id);
       const g = memGames.find((x) => x.id === att.game_id);
+      const v = memProfiles.find((x) => x.id === att.volunteer_id || x.volunteer_code === att.volunteer_id);
       activities.push({
         id: att.id,
         volunteer_id: att.volunteer_id,
-        volunteer_name: att.volunteer_id === "vol-1" ? "Alex (VOL-01)" : "Staff Team (VOL-02)",
+        volunteer_name: v?.display_name || "Unknown Volunteer",
+        volunteer_code: v?.volunteer_code || "N/A",
         player_roll_number: p?.university_roll_number || "Unknown",
         player_name: p?.full_name || "Unknown",
         game_name: g?.name || "Unknown",
@@ -957,10 +1366,12 @@ export const DataStore = {
     for (const req of memCorrectionRequests) {
       const p = memPlayers.find((x) => x.id === req.requested_player_id);
       const g = memGames.find((x) => x.id === req.requested_game_id);
+      const v = memProfiles.find((x) => x.id === req.requested_by || x.volunteer_code === req.requested_by);
       activities.push({
         id: req.id,
         volunteer_id: req.requested_by,
-        volunteer_name: req.requested_by === "vol-1" ? "Alex (VOL-01)" : "Staff Team (VOL-02)",
+        volunteer_name: v?.display_name || "Unknown Volunteer",
+        volunteer_code: v?.volunteer_code || "N/A",
         player_roll_number: p?.university_roll_number || "Unknown",
         player_name: p?.full_name || "Unknown",
         game_name: g?.name || "Unknown",

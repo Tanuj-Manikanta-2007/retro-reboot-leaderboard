@@ -17,8 +17,22 @@ export async function POST(req: NextRequest) {
 
     const { player_id, game_id, scoring_method, raw_score, awarded_points, idempotency_key } = parsed.data;
 
-    // Retrieve volunteer identity from header or body
-    const volunteerId = req.headers.get("x-volunteer-id") || body.volunteer_id || "vol-1";
+    // Retrieve volunteer identity from header, body, or cookie
+    let volunteerId = req.headers.get("x-volunteer-id") || body.volunteer_id;
+    if (!volunteerId) {
+      const cookieIdentity = req.cookies.get("retro_volunteer_identity")?.value;
+      if (cookieIdentity) {
+        try {
+          const parsedIdent = JSON.parse(cookieIdentity);
+          volunteerId = parsedIdent.id || parsedIdent.code;
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (!volunteerId) {
+      volunteerId = "VOL-01";
+    }
 
     const attempt = await DataStore.submitScore({
       player_id,

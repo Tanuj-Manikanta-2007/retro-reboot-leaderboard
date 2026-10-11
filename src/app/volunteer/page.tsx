@@ -22,7 +22,7 @@ import { CorrectionModal } from "@/components/volunteer/CorrectionModal";
 import { evaluateAutomaticScore } from "@/services/scoring-service";
 
 export default function VolunteerDashboardPage() {
-  const [identity, setIdentity] = useState<{ code: string; name: string } | null>(null);
+  const [identity, setIdentity] = useState<{ id?: string; code: string; name: string } | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [rules, setRules] = useState<ScoringRule[]>([]);
@@ -214,7 +214,7 @@ export default function VolunteerDashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-volunteer-id": identity?.code || "vol-1",
+          "x-volunteer-id": identity?.id || identity?.code || "",
         },
         body: JSON.stringify({
           player_id: selectedPlayerId,
@@ -681,7 +681,7 @@ export default function VolunteerDashboardPage() {
           attempt={correctionTarget}
           players={players}
           games={games}
-          volunteerId={identity.code}
+          volunteerId={identity.id || identity.code}
           onClose={() => setCorrectionTarget(null)}
           onSuccess={() => {
             setCorrectionTarget(null);
