@@ -3,9 +3,8 @@
 -- Default event settings, games, scoring rules, and test participants
 -- ==============================================================================
 
--- 1. EVENT SETTINGS (Default Admin PIN: 654321, Volunteer PIN: 1234)
--- SHA-256 of '654321' is '481f6cc0511143ccdd7e2d1b1b94faf0a700a8b49cd13922a70b5ae28acaa8c5' (illustrative demo hash)
--- SHA-256 of '1234' is '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4'
+-- 1. EVENT SETTINGS
+-- PIN hashes are configured through server environment variables.
 INSERT INTO public.event_settings (id, event_name, event_room, event_date, event_time, scoring_open, results_published, admin_pin_hash, volunteer_pin_hash)
 VALUES (
     1,
