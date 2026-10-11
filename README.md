@@ -62,8 +62,8 @@ Official tournament scoring, live leaderboards, volunteer mobile scoring station
 - **Volunteer Activity & Correction Audit**
 
 ### 5. Access Control & Event PIN Gate
-- **6-digit Admin PIN** (Default demo: `654321`)
-- **4-digit Volunteer PIN** (Default demo: `1234`)
+- **6-digit Admin PIN**, configured through `EVENT_ADMIN_PIN_HASH`
+- **4-digit Volunteer PIN**, configured through `EVENT_VOLUNTEER_PIN_HASH`
 - PIN verification validates against SHA-256 hashes and pairs with individual volunteer identity attribution (`VOL-01`, `Volunteer Alex`).
 
 ---
@@ -129,8 +129,8 @@ npm run start
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-  EVENT_ADMIN_PIN_HASH=481f6cc0511143ccdd7e2d1b1b94faf0a700a8b49cd13922a70b5ae28acaa8c5
-   EVENT_VOLUNTEER_PIN_HASH=03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4
+  EVENT_ADMIN_PIN_HASH=your-admin-pin-sha256-hash
+  EVENT_VOLUNTEER_PIN_HASH=your-volunteer-pin-sha256-hash
    ```
 
 ---

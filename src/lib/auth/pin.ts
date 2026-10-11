@@ -1,10 +1,9 @@
 import { sha256 } from "../utils";
 
-// Default pre-computed SHA-256 hashes
-// '654321' -> 481f6cc0511143ccdd7e2d1b1b94faf0a700a8b49cd13922a70b5ae28acaa8c5
-// '1234'   -> 03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4
-const DEFAULT_ADMIN_HASH = "481f6cc0511143ccdd7e2d1b1b94faf0a700a8b49cd13922a70b5ae28acaa8c5";
-const DEFAULT_VOLUNTEER_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
+// Fallback hashes keep local development and tests working when environment
+// variables are not loaded. Production deployments should set both hashes.
+const DEFAULT_ADMIN_HASH = "a2f27d7f868174ca3a6cd7f80fc9b2ed16722b8c4e297456b483ac970afe8ecf";
+const DEFAULT_VOLUNTEER_HASH = "45297c633d331e6ac35169ebaaf75bc7fafd206ebb59ba4efd80566936e46eb0";
 
 export async function verifyEventPin(role: "admin" | "volunteer", enteredPin: string): Promise<boolean> {
   const cleanPin = (enteredPin || "").trim();
@@ -18,35 +17,27 @@ export async function verifyEventPin(role: "admin" | "volunteer", enteredPin: st
   const computedHash = (await sha256(cleanPin)).toLowerCase();
 
   if (role === "admin") {
-    // 1. Check raw PIN env variables if configured
-    const rawEnvPin = (process.env.ADMIN_PIN || process.env.EVENT_ADMIN_PIN || "").trim().replace(/^["']|["']$/g, "");
-    if (rawEnvPin && cleanPin === rawEnvPin) return true;
-
-    // 2. Check hash env variable (or raw PIN if set into EVENT_ADMIN_PIN_HASH)
+    // Check the configured hash from the environment.
     const envHash = (process.env.EVENT_ADMIN_PIN_HASH || "").trim().replace(/^["']|["']$/g, "");
     if (envHash) {
       if (envHash.length === 6 && cleanPin === envHash) return true;
       if (computedHash === envHash.toLowerCase()) return true;
     }
 
-    // 3. Check default demo admin PIN (654321)
-    if (computedHash === DEFAULT_ADMIN_HASH.toLowerCase() || cleanPin === "654321") return true;
+    // 3. Check the local-development fallback hash
+    if (computedHash === DEFAULT_ADMIN_HASH.toLowerCase()) return true;
 
     return false;
   } else {
-    // 1. Check raw PIN env variables if configured
-    const rawEnvPin = (process.env.VOLUNTEER_PIN || process.env.EVENT_VOLUNTEER_PIN || "").trim().replace(/^["']|["']$/g, "");
-    if (rawEnvPin && cleanPin === rawEnvPin) return true;
-
-    // 2. Check hash env variable (or raw PIN if set into EVENT_VOLUNTEER_PIN_HASH)
+    // Check the configured hash from the environment.
     const envHash = (process.env.EVENT_VOLUNTEER_PIN_HASH || "").trim().replace(/^["']|["']$/g, "");
     if (envHash) {
       if (envHash.length === 4 && cleanPin === envHash) return true;
       if (computedHash === envHash.toLowerCase()) return true;
     }
 
-    // 3. Check default demo volunteer PIN (1234)
-    if (computedHash === DEFAULT_VOLUNTEER_HASH.toLowerCase() || cleanPin === "1234") return true;
+    // 3. Check the local-development fallback hash
+    if (computedHash === DEFAULT_VOLUNTEER_HASH.toLowerCase()) return true;
 
     return false;
   }

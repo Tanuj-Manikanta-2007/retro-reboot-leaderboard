@@ -697,12 +697,12 @@ import("../src/services/data-store").then(async ({ DataStore }) => {
   console.log("\nTest Suite 15: Event PIN Verification & Schema Compatibility");
 
   // Schema parsing
-  const adminCleanPayload = pinVerificationSchema.safeParse({ role: "admin", pin: "654321" });
+  const adminCleanPayload = pinVerificationSchema.safeParse({ role: "admin", pin: "204060" });
   assert(adminCleanPayload.success === true, "Validates clean admin PIN payload");
 
   const adminEmptyStringsPayload = pinVerificationSchema.safeParse({
     role: "admin",
-    pin: "654321",
+    pin: "204060",
     volunteerName: "",
     volunteerCode: "",
   });
@@ -710,18 +710,18 @@ import("../src/services/data-store").then(async ({ DataStore }) => {
 
   const volunteerValidPayload = pinVerificationSchema.safeParse({
     role: "volunteer",
-    pin: "1234",
+    pin: "1210",
     volunteerName: "Tanuj",
     volunteerCode: "VOL-01",
   });
   assert(volunteerValidPayload.success === true, "Validates volunteer PIN payload with valid name and code");
 
   // verifyEventPin logic
-  const adminPinValid = await verifyEventPin("admin", "654321");
-  assert(adminPinValid === true, "verifyEventPin verifies correct 6-digit Admin PIN '654321'");
+  const adminPinValid = await verifyEventPin("admin", "204060");
+  assert(adminPinValid === true, "verifyEventPin verifies correct 6-digit Admin PIN");
 
-  const volunteerPinValid = await verifyEventPin("volunteer", "1234");
-  assert(volunteerPinValid === true, "verifyEventPin verifies correct 4-digit Volunteer PIN '1234'");
+  const volunteerPinValid = await verifyEventPin("volunteer", "1210");
+  assert(volunteerPinValid === true, "verifyEventPin verifies correct 4-digit Volunteer PIN");
 
   const adminWrongPin = await verifyEventPin("admin", "123456");
   assert(adminWrongPin === false, "verifyEventPin rejects incorrect Admin PIN");
@@ -729,7 +729,7 @@ import("../src/services/data-store").then(async ({ DataStore }) => {
   const adminWrongLength = await verifyEventPin("admin", "1234");
   assert(adminWrongLength === false, "verifyEventPin rejects 4-digit PIN for Admin (requires 6 digits)");
 
-  const volunteerWrongLength = await verifyEventPin("volunteer", "654321");
+  const volunteerWrongLength = await verifyEventPin("volunteer", "204060");
   assert(volunteerWrongLength === false, "verifyEventPin rejects 6-digit PIN for Volunteer (requires 4 digits)");
 
   console.log("\n=======================================================");
