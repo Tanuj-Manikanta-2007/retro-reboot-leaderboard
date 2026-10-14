@@ -134,10 +134,6 @@ npm run start
    ```
 
 ---
+[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/tanuj-manikanta-2007/retro-reboot-leaderboard?utm_source=readme&utm_medium=badge)
 
-## 🌐 Vercel Deployment
 
-1. Push this repository to GitHub or GitLab.
-2. In Vercel, click **"Add New Project"** and import the repository.
-3. Configure the Environment Variables listed in `.env.example`.
-4. Deploy! Next.js App Router edge and serverless routes will handle all API endpoints and static pages.
