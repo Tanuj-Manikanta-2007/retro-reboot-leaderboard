@@ -1,4 +1,5 @@
 # Retro Reboot 2.0 by COGAAN — Tournament Scoring & Leaderboard Web App
+[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/tanuj-manikanta-2007/retro-reboot-leaderboard?utm_source=readme&utm_medium=badge)
 
 Official tournament scoring, live leaderboards, volunteer mobile scoring station, and administrative audit system for **Retro Reboot 2.0**, organized by **COGAAN** (*Coding • Gaming • Animation*).
 
@@ -134,6 +135,6 @@ npm run start
    ```
 
 ---
-[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/tanuj-manikanta-2007/retro-reboot-leaderboard?utm_source=readme&utm_medium=badge)
+
 
 
